@@ -1,5 +1,9 @@
 # CPT-Based Pile Capacity Calculator
 
+## Program Interface
+
+![GUI](screenshot.png)
+
 ## 1. Objective
 This program is developed to calculate axial pile capacity based on CPT data and CPT-based methods from API RP 2GEO.
 
@@ -52,3 +56,4 @@ The program includes four CPT-based methods:
 Open terminal in project folder and run:
 
 python main.py
+
