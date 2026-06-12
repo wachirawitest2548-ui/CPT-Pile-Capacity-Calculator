@@ -1,3 +1,3 @@
-from gui import run_app
+from layer_gui import run_app
 
 run_app()

@@ -98,22 +98,42 @@ def run_app():
             messagebox.showwarning("Warning", "ต้องกด Calculate ก่อน")
             return
 
-        plt.figure(figsize=(7, 6))
-        plt.plot(graph_qcs, graph_depths, marker="o", linewidth=2)
+        plt.figure(figsize=(7, 8), dpi=120)
+
+        plt.plot(
+            graph_qcs,
+            graph_depths,
+            marker="o",
+            linewidth=2.2,
+            markersize=5,
+            label="Cone resistance, qc"
+        )
+
+        plt.fill_betweenx(
+            graph_depths,
+            graph_qcs,
+            alpha=0.12
+        )
 
         for x, y in zip(graph_qcs, graph_depths):
             plt.annotate(
                 f"{x:.0f}",
                 (x, y),
                 textcoords="offset points",
-                xytext=(5, 5)
+                xytext=(6, 3),
+                fontsize=8
             )
 
         plt.gca().invert_yaxis()
-        plt.xlabel("qc (kPa)")
-        plt.ylabel("Depth (m)")
-        plt.title("CPT Cone Resistance Profile")
-        plt.grid(True)
+        plt.xlabel("Cone Resistance, qc (kPa)", fontsize=11)
+        plt.ylabel("Depth below seafloor (m)", fontsize=11)
+        plt.title("CPT Cone Resistance Profile", fontsize=14, fontweight="bold")
+
+        plt.grid(True, which="major", linestyle="--", linewidth=0.6, alpha=0.7)
+        plt.minorticks_on()
+        plt.grid(True, which="minor", linestyle=":", linewidth=0.4, alpha=0.4)
+
+        plt.legend()
         plt.tight_layout()
         plt.show()
 
@@ -142,16 +162,41 @@ def run_app():
                 messagebox.showwarning("Warning", "ไม่มีข้อมูลสำหรับสร้าง Capacity Curve")
                 return
 
-            plt.figure(figsize=(8, 6))
-            plt.plot(qult, depths, "o-", linewidth=2, label="Ultimate Capacity, Qult")
-            plt.plot(qallow, depths, "s-", linewidth=2, label="Allowable Capacity, Qallow")
+            plt.figure(figsize=(8, 8), dpi=120)
+
+            plt.plot(
+                qult,
+                depths,
+                marker="o",
+                linewidth=2.4,
+                markersize=5,
+                label="Ultimate Capacity, Qult"
+            )
+
+            plt.plot(
+                qallow,
+                depths,
+                marker="s",
+                linewidth=2.4,
+                markersize=5,
+                label="Allowable Capacity, Qallow"
+            )
+
+            plt.fill_betweenx(
+                depths,
+                qallow,
+                qult,
+                alpha=0.10,
+                label="Safety margin"
+            )
 
             for x, y in zip(qult, depths):
                 plt.annotate(
                     f"{x:.0f}",
                     (x, y),
                     textcoords="offset points",
-                    xytext=(5, 5)
+                    xytext=(6, 4),
+                    fontsize=8
                 )
 
             for x, y in zip(qallow, depths):
@@ -159,14 +204,19 @@ def run_app():
                     f"{x:.0f}",
                     (x, y),
                     textcoords="offset points",
-                    xytext=(5, -15)
+                    xytext=(6, -12),
+                    fontsize=8
                 )
 
             plt.gca().invert_yaxis()
-            plt.xlabel("Axial Capacity (kN)")
-            plt.ylabel("Pile Penetration Depth (m)")
-            plt.title(f"{method} Axial Pile Capacity Curve")
-            plt.grid(True)
+            plt.xlabel("Axial Capacity (kN)", fontsize=11)
+            plt.ylabel("Pile Penetration Depth (m)", fontsize=11)
+            plt.title(f"{method} Axial Pile Capacity Curve", fontsize=14, fontweight="bold")
+
+            plt.grid(True, which="major", linestyle="--", linewidth=0.6, alpha=0.7)
+            plt.minorticks_on()
+            plt.grid(True, which="minor", linestyle=":", linewidth=0.4, alpha=0.4)
+
             plt.legend()
             plt.tight_layout()
             plt.show()
@@ -234,7 +284,6 @@ def run_app():
 
             with PdfPages(file_path) as pdf:
 
-                # Page 1: Summary
                 fig_summary = plt.figure(figsize=(8.27, 11.69))
                 plt.axis("off")
 
@@ -259,38 +308,54 @@ def run_app():
                 pdf.savefig(fig_summary)
                 plt.close(fig_summary)
 
-                # Page 2: CPT Profile
                 fig_cpt = plt.figure(figsize=(8.27, 11.69))
-                plt.plot(graph_qcs, graph_depths, "o-", linewidth=2)
+                plt.plot(graph_qcs, graph_depths, "o-", linewidth=2.2)
+
+                plt.fill_betweenx(
+                    graph_depths,
+                    graph_qcs,
+                    alpha=0.12
+                )
 
                 for x, y in zip(graph_qcs, graph_depths):
                     plt.annotate(
                         f"{x:.0f}",
                         (x, y),
                         textcoords="offset points",
-                        xytext=(5, 5)
+                        xytext=(5, 5),
+                        fontsize=8
                     )
 
                 plt.gca().invert_yaxis()
                 plt.xlabel("qc (kPa)")
-                plt.ylabel("Depth (m)")
+                plt.ylabel("Depth below seafloor (m)")
                 plt.title("CPT Cone Resistance Profile")
-                plt.grid(True)
+                plt.grid(True, which="major", linestyle="--", linewidth=0.6, alpha=0.7)
+                plt.minorticks_on()
+                plt.grid(True, which="minor", linestyle=":", linewidth=0.4, alpha=0.4)
                 plt.tight_layout()
                 pdf.savefig(fig_cpt)
                 plt.close(fig_cpt)
 
-                # Page 3: Capacity Curve
                 fig_capacity = plt.figure(figsize=(8.27, 11.69))
-                plt.plot(qult, depths, "o-", linewidth=2, label="Ultimate Capacity, Qult")
-                plt.plot(qallow, depths, "s-", linewidth=2, label="Allowable Capacity, Qallow")
+                plt.plot(qult, depths, "o-", linewidth=2.4, label="Ultimate Capacity, Qult")
+                plt.plot(qallow, depths, "s-", linewidth=2.4, label="Allowable Capacity, Qallow")
+
+                plt.fill_betweenx(
+                    depths,
+                    qallow,
+                    qult,
+                    alpha=0.10,
+                    label="Safety margin"
+                )
 
                 for x, y in zip(qult, depths):
                     plt.annotate(
                         f"{x:.0f}",
                         (x, y),
                         textcoords="offset points",
-                        xytext=(5, 5)
+                        xytext=(5, 5),
+                        fontsize=8
                     )
 
                 for x, y in zip(qallow, depths):
@@ -298,14 +363,17 @@ def run_app():
                         f"{x:.0f}",
                         (x, y),
                         textcoords="offset points",
-                        xytext=(5, -15)
+                        xytext=(5, -15),
+                        fontsize=8
                     )
 
                 plt.gca().invert_yaxis()
                 plt.xlabel("Axial Capacity (kN)")
                 plt.ylabel("Pile Penetration Depth (m)")
                 plt.title(f"{method} Axial Pile Capacity Curve")
-                plt.grid(True)
+                plt.grid(True, which="major", linestyle="--", linewidth=0.6, alpha=0.7)
+                plt.minorticks_on()
+                plt.grid(True, which="minor", linestyle=":", linewidth=0.4, alpha=0.4)
                 plt.legend()
                 plt.tight_layout()
                 pdf.savefig(fig_capacity)
