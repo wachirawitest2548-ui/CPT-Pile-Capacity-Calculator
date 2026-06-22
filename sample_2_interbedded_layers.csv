@@ -1,0 +1,12 @@
+from_depth,to_depth,soil_type,behavior,gamma_top,gamma_bot,cu_top,cu_bot,qc_f,qc_eb,delta_cv,k0,flim,qlim
+0,5,clay,cohesive,16,16.5,10,20,,,,,,
+5,12,sand,frictional,18,18.5,,,8,10,28.8,1.0,,
+12,18,clay,cohesive,17,17.5,25,40,,,,,,
+18,28,sand,frictional,18.5,19,,,15,20,28.8,1.0,,
+28,35,silt/clay,frictional,18.5,19,,,8,8,28.8,1.0,,2.0
+35,45,clay,cohesive,18,18.5,50,80,,,,,,
+45,60,sand,frictional,19,19.5,,,20,28,30,1.0,,
+60,75,silt,frictional,19,19.5,,,12,15,28.8,1.0,,
+75,95,very stiff clay,cohesive,19,19.5,120,220,,,,,,
+95,130,dense sand,frictional,19.5,20.2,,,35,50,32,1.0,,
+130,170,hard clay,cohesive,19.5,20.0,220,400,,,,,,
