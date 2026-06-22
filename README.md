@@ -161,3 +161,14 @@ PTTEP Internship Project
 CPT-Based Axial Capacity Assessment Tool
 
 API RP 2GEO Offshore Foundation Design
+
+
+กรณีที่พี่ไม่มีโปรเจกต์นี้เลย
+
+รัน
+
+git clone https://github.com/wachirawitest2548-ui/CPT-Pile-Capacity-Calculator.git
+
+แล้วเข้าโฟลเดอร์
+
+cd CPT-Pile-Capacity-Calculator
