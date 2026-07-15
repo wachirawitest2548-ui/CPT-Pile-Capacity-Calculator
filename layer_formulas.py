@@ -5,6 +5,9 @@ DCPT = 0.036
 INTEGRATION_STEP = 0.25
 GAMMA_W = 10.0  # kN/m3, seawater approx.
 
+API_RP_2A_1979_1986 = "API RP 2A (1979-1986)"
+
+
 
 def pile_area(D):
     return math.pi * D**2 / 4
@@ -191,7 +194,11 @@ def method_parameters(method, Ar, loading_type="compression"):
     raise ValueError("Method ไม่ถูกต้อง")
 
 
-def unit_shaft_cohesive(layer, z, layers):
+def unit_shaft_cohesive_api_main(layer, z, layers):
+    """
+    API RP 2GEO (October 2014) Main Text cohesive model.
+    f = alpha * cu, where alpha is a function of psi = cu / p'0.
+    """
     cu = layer_value(layer, "cu", z)
     if cu is None:
         return 0.0
@@ -211,6 +218,183 @@ def unit_shaft_cohesive(layer, z, layers):
         unit_shaft = min(unit_shaft, layer["flim"])
 
     return unit_shaft
+
+
+def _annex_c_alpha_other_clay(cu):
+    """Annex C alpha for clay that is not treated as highly plastic NC/UC."""
+    if cu <= 24.0:
+        return 1.0
+    if cu >= 72.0:
+        return 0.5
+    return 1.0 - 0.5 * ((cu - 24.0) / (72.0 - 24.0))
+
+# User-defined Annex C high-plastic NC screening range based on cu/sigma'v0.
+# This is an engineering heuristic for cases where PI/LL data are not provided.
+ANNEX_C_HIGH_PLASTIC_RATIO_MIN = 0.22
+ANNEX_C_HIGH_PLASTIC_RATIO_MAX = 0.27
+ANNEX_C_OC_RATIO_LIMIT = 0.50
+
+
+def set_annex_c_high_plastic_ratio_range(ratio_min=0.22, ratio_max=0.27, oc_limit=0.50):
+    """Set user-defined cu/sigma'v0 range for Annex C high plastic NC interpretation.
+
+    The range is used only as a preliminary engineering heuristic when explicit
+    plasticity information is not available in the input.
+    """
+    global ANNEX_C_HIGH_PLASTIC_RATIO_MIN, ANNEX_C_HIGH_PLASTIC_RATIO_MAX, ANNEX_C_OC_RATIO_LIMIT
+
+    try:
+        ratio_min = float(ratio_min)
+        ratio_max = float(ratio_max)
+        oc_limit = float(oc_limit)
+    except Exception:
+        ratio_min, ratio_max, oc_limit = 0.22, 0.27, 0.50
+
+    if ratio_min <= 0 or ratio_max <= 0 or ratio_min >= ratio_max:
+        ratio_min, ratio_max = 0.22, 0.27
+    if oc_limit <= ratio_max:
+        oc_limit = 0.50
+
+    ANNEX_C_HIGH_PLASTIC_RATIO_MIN = ratio_min
+    ANNEX_C_HIGH_PLASTIC_RATIO_MAX = ratio_max
+    ANNEX_C_OC_RATIO_LIMIT = oc_limit
+
+
+def get_annex_c_high_plastic_ratio_range():
+    return ANNEX_C_HIGH_PLASTIC_RATIO_MIN, ANNEX_C_HIGH_PLASTIC_RATIO_MAX, ANNEX_C_OC_RATIO_LIMIT
+
+
+
+def _depth_in_any_interval(z, intervals):
+    return any(a <= z <= b for a, b in intervals)
+
+
+def annex_c_clay_category(layer, z, layers=None):
+    """
+    Classify the clay category used by API RP 2GEO Annex C.
+
+    Explicit user input controls first:
+    - high plastic / highly plastic / fat clay -> high_plastic_nc
+    - low plastic / lean clay -> other_clay
+    - high plastic + OC wording -> high_plastic_oc
+
+    If the input only says "clay", the program uses a user-defined
+    cu/sigma'v0 range as an engineering heuristic for preliminary assessment.
+    This does NOT replace laboratory Atterberg Limits / PI / LL interpretation.
+    """
+    soil_name = str(layer.get("soil_type", "")).lower()
+
+    # Explicit user-provided interpretation always controls.
+    if "overconsolidated" in soil_name or soil_name.endswith(" oc") or " oc " in soil_name:
+        return "high_plastic_oc" if ("high" in soil_name or "fat" in soil_name) else "other_clay"
+
+    if "high plastic" in soil_name or "highly plastic" in soil_name or "fat clay" in soil_name:
+        return "high_plastic_nc"
+
+    if "low plastic" in soil_name or "lean clay" in soil_name or "lean" in soil_name:
+        return "other_clay"
+
+    # User-defined heuristic: no WPA-01/WPA-02 hardcoded depth windows.
+    cu = layer_value(layer, "cu", z)
+    if layers is not None and cu is not None:
+        p0 = effective_stress_at_depth(layers, z)
+        ratio = cu / max(p0, 1.0)
+        r_min, r_max, oc_limit = get_annex_c_high_plastic_ratio_range()
+
+        # Likely overconsolidated / too high to assume NC/UC behaviour.
+        # Do not use f = cu when the ratio is unusually high.
+        if ratio > oc_limit:
+            return "other_clay"
+
+        # User-selected NC/high plastic screening range, e.g. WPA-02: 0.22-0.27.
+        if r_min <= ratio <= r_max:
+            return "high_plastic_nc"
+
+    # Conservative/default Annex C category when plasticity is unknown.
+    return "other_clay"
+
+
+def unit_shaft_cohesive_annex_c(layer, z, layers=None):
+    """API RP 2GEO Annex C / former API RP 2A-1979 cohesive shaft model."""
+    cu = layer_value(layer, "cu", z)
+    if cu is None:
+        return 0.0
+
+    category = annex_c_clay_category(layer, z, layers)
+
+    if category == "high_plastic_nc":
+        unit_shaft = cu
+    elif category == "high_plastic_oc":
+        unit_shaft = min(cu, 48.0)
+    else:
+        alpha = _annex_c_alpha_other_clay(cu)
+        unit_shaft = alpha * cu
+
+    if layer["flim"] is not None:
+        unit_shaft = min(unit_shaft, layer["flim"])
+
+    return unit_shaft
+
+
+def unit_shaft_cohesive(layer, z, layers, cohesive_model="API RP 2GEO (October 2014)"):
+    model = str(cohesive_model).lower()
+    if "annex" in model:
+        return unit_shaft_cohesive_annex_c(layer, z, layers)
+    return unit_shaft_cohesive_api_main(layer, z, layers)
+
+
+
+
+def unit_shaft_cohesive_details(layer, z, layers, cohesive_model="API RP 2GEO (October 2014)"):
+    """
+    Return cohesive unit shaft resistance together with the adhesion factor alpha.
+    Output: (unit_shaft_kPa, alpha, psi)
+    - psi is only applicable to API RP 2GEO Main Text; Annex C returns None.
+    """
+    cu = layer_value(layer, "cu", z)
+    if cu is None:
+        return 0.0, None, None
+
+    model = str(cohesive_model).lower()
+
+    if "annex" in model:
+        category = annex_c_clay_category(layer, z, layers)
+
+        if category == "high_plastic_nc":
+            alpha = 1.0
+            unit_shaft = cu
+        elif category == "high_plastic_oc":
+            unit_shaft = min(cu, 48.0)
+            alpha = unit_shaft / cu if cu else None
+        else:
+            alpha = _annex_c_alpha_other_clay(cu)
+            unit_shaft = alpha * cu
+
+        if layer["flim"] is not None:
+            capped = min(unit_shaft, layer["flim"])
+            unit_shaft = capped
+            alpha = unit_shaft / cu if cu else alpha
+
+        return unit_shaft, alpha, None
+
+    # API RP 2GEO Main Text cohesive model
+    p0 = effective_stress_at_depth(layers, z)
+    psi = cu / p0
+
+    if psi <= 1:
+        alpha = 0.5 * psi ** (-0.5)
+    else:
+        alpha = 0.5 * psi ** (-0.25)
+
+    alpha = min(alpha, 1.0)
+    unit_shaft = alpha * cu
+
+    if layer["flim"] is not None:
+        capped = min(unit_shaft, layer["flim"])
+        unit_shaft = capped
+        alpha = unit_shaft / cu if cu else alpha
+
+    return unit_shaft, alpha, psi
 
 
 def relative_density_method4(qc, z, layers):
@@ -313,10 +497,34 @@ def api_main_text_sand_params_from_qc(qc_kpa):
     }
 
 
+def unit_shaft_iso_2025_sand(layer, z, D, L, WT, layers, loading_type="compression"):
+    """
+    ISO 19901-4:2025 Clause 8.1.4 Unified CPT method for sand.
+    Stress units are kPa and dimensions are metres.
+    """
+    qc = layer_value(layer, "qc_f", z)
+    if qc is None or qc <= 0:
+        return 0.0
+
+    Are = pile_displacement_ratio(D, WT)  # PLR = 1.0
+    sigma_v_eff = effective_stress_at_depth(layers, z)
+    h = max(L - z, 0.0)
+
+    sigma_rc = (qc / 44.0) * (Are ** 0.3) * (max(1.0, h / D) ** -0.4)
+    d_ref = 0.0356
+    delta_sigma_rd = (qc / 10.0) * ((qc / sigma_v_eff) ** -0.33) * (d_ref / D)
+
+    fL = 0.75 if loading_type == "tension" else 1.0
+    unit_shaft = fL * (sigma_rc + delta_sigma_rd) * math.tan(math.radians(29.0))
+
+    if layer["flim"] is not None:
+        unit_shaft = min(unit_shaft, layer["flim"])
+
+    return max(unit_shaft, 0.0)
+
+
 def unit_shaft_frictional(layer, z, D, L, WT, layers, method, loading_type="compression"):
     qc_f = layer_value(layer, "qc_f", z)
-    if qc_f is None:
-        return 0.0
 
     Ar = pile_displacement_ratio(D, WT)
     p0 = effective_stress_at_depth(layers, z)
@@ -325,6 +533,8 @@ def unit_shaft_frictional(layer, z, D, L, WT, layers, method, loading_type="comp
     tan_delta_cv = math.tan(math.radians(delta_cv))
 
     if method in ["ICP-05", "UWA-05", "Fugro-05"]:
+        if qc_f is None:
+            return 0.0
         p = method_parameters(method, Ar, loading_type)
 
         term1 = p["u"] * qc_f
@@ -337,6 +547,8 @@ def unit_shaft_frictional(layer, z, D, L, WT, layers, method, loading_type="comp
         unit_shaft = max(term1 * term2 * term3 * term4 * term5 * term6, 0)
 
     elif method == "NGI-05":
+        if qc_f is None:
+            return 0.0
         Dr = relative_density_method4(qc_f, z, layers)
         Fsig = (p0 / PA) ** 0.25
         FDr = 2.1 * (Dr - 0.1) ** 1.7
@@ -351,7 +563,22 @@ def unit_shaft_frictional(layer, z, D, L, WT, layers, method, loading_type="comp
         # This prevents low-qc frictional layers from producing zero unit shaft resistance.
         unit_shaft = max(unit_shaft, 0.1 * p0)
 
+    elif method == "ISO 19901-4:2025":
+        unit_shaft = unit_shaft_iso_2025_sand(
+            layer, z, D, L, WT, layers, loading_type
+        )
+
+    elif method == API_RP_2A_1979_1986:
+        # API RP 2A (1979 through 1986) traditional frictional soil method.
+        # Fugro NTA-02 applies K = 0.8 for compression and K = 0.5 for tension.
+        # Unit shaft resistance: f = K * p'0 * tan(delta), capped by flim if provided.
+        k_lateral = 0.8 if loading_type == "compression" else 0.5
+        unit_shaft = k_lateral * p0 * tan_delta_cv
+        unit_shaft = max(unit_shaft, 0.0)
+
     elif method == "API Main Text":
+        if qc_f is None:
+            return 0.0
         params = api_main_text_sand_params_from_qc(qc_f)
         beta = params["beta"]
 
@@ -375,7 +602,7 @@ def unit_shaft_frictional(layer, z, D, L, WT, layers, method, loading_type="comp
     return unit_shaft
 
 
-def integrate_layer_shaft(layer, D, L, WT, layers, method, loading_type):
+def integrate_layer_shaft(layer, D, L, WT, layers, method, loading_type, cohesive_model="API RP 2GEO (October 2014)"):
     z1 = layer["from_depth"]
     z2 = min(layer["to_depth"], L)
 
@@ -385,6 +612,8 @@ def integrate_layer_shaft(layer, D, L, WT, layers, method, loading_type):
     perimeter = pile_perimeter(D)
     total_qshaft = 0.0
     weighted_unit = 0.0
+    weighted_alpha = 0.0
+    alpha_dz = 0.0
     total_dz = 0.0
 
     z = z1
@@ -395,7 +624,10 @@ def integrate_layer_shaft(layer, D, L, WT, layers, method, loading_type):
         dz = zb - za
 
         if layer["behavior"] == "cohesive":
-            unit = unit_shaft_cohesive(layer, z_mid, layers)
+            unit, alpha, _psi = unit_shaft_cohesive_details(layer, z_mid, layers, cohesive_model)
+            if alpha is not None:
+                weighted_alpha += alpha * dz
+                alpha_dz += dz
         elif layer["behavior"] == "frictional":
             unit = unit_shaft_frictional(layer, z_mid, D, L, WT, layers, method, loading_type)
         else:
@@ -407,7 +639,8 @@ def integrate_layer_shaft(layer, D, L, WT, layers, method, loading_type):
         z = zb
 
     avg_unit = weighted_unit / total_dz if total_dz > 0 else 0.0
-    return avg_unit, total_qshaft
+    avg_alpha = weighted_alpha / alpha_dz if alpha_dz > 0 else None
+    return avg_unit, total_qshaft, avg_alpha
 
 
 def qc_eb_average_around_tip(layers, L, D):
@@ -460,6 +693,18 @@ def end_bearing_frictional(method, qc_eb_av, D, WT, layers, L, tip_layer):
         Dr = relative_density_method4(qc_eb_av, L, layers)
         q_unit = 0.7 * qc_eb_av / (1 + 3 * Dr ** 2)
 
+    elif method == "ISO 19901-4:2025":
+        # ISO 19901-4:2025 Clause 8.1.4, plugged base resistance.
+        q_unit = (0.12 + 0.38 * Ar) * qc_eb_av
+
+    elif method == API_RP_2A_1979_1986:
+        # API RP 2A (1979 through 1986) traditional end bearing.
+        # Uses Nq from CSV column k0, then q = Nq * p'0 at pile tip.
+        # If Nq is blank, use Nq = 20 as a conservative default for frictional material.
+        Nq = tip_layer["k0"] if tip_layer["k0"] is not None else 20.0
+        p0_tip = effective_stress_at_depth(layers, L)
+        q_unit = Nq * p0_tip
+
     elif method == "API Main Text":
         # API Main Text simplified sand end bearing:
         #     q = Nq * p'0,tip
@@ -468,6 +713,8 @@ def end_bearing_frictional(method, qc_eb_av, D, WT, layers, L, tip_layer):
         qc_for_state = layer_value(tip_layer, "qc_eb", L)
         if qc_for_state is None:
             qc_for_state = layer_value(tip_layer, "qc_f", L)
+        if qc_for_state is None:
+            qc_for_state = 1000.0
 
         params = api_main_text_sand_params_from_qc(qc_for_state)
         Nq = params["Nq"]
@@ -500,7 +747,7 @@ def end_bearing_cohesive(layer, L):
     return q_unit
 
 
-def calculate_layer_capacity(D, L, WT, FS, method, layer_lines, loading_type="compression"):
+def calculate_layer_capacity(D, L, WT, FS, method, layer_lines, loading_type="compression", cohesive_model="API RP 2GEO (October 2014)"):
     layers = parse_layer_lines(layer_lines)
     Ap = pile_area(D)
     perimeter = pile_perimeter(D)
@@ -540,11 +787,15 @@ def calculate_layer_capacity(D, L, WT, FS, method, layer_lines, loading_type="co
             p0_layer = gamma_eff * dz
             cum_p0 = effective_stress_at_depth(layers, z2_eff)
 
-        unit_shaft, qshaft_layer = integrate_layer_shaft(layer, D, L, WT, layers, method, loading_type)
+        unit_shaft, qshaft_layer, alpha_value = integrate_layer_shaft(layer, D, L, WT, layers, method, loading_type, cohesive_model)
         total_qshaft += qshaft_layer
 
         if layer["behavior"] == "cohesive":
-            used_parameter = "cu"
+            used_parameter = "cu (Annex C)" if "annex" in str(cohesive_model).lower() else "cu"
+        elif method == API_RP_2A_1979_1986:
+            used_parameter = "p'0, δ, K, Nq"
+        elif method == "ISO 19901-4:2025":
+            used_parameter = "qc_f, Are, h/D, σ'v"
         elif method == "API Main Text":
             used_parameter = "Dr(qc), β, Nq"
         else:
@@ -566,6 +817,7 @@ def calculate_layer_capacity(D, L, WT, FS, method, layer_lines, loading_type="co
             "flim": layer["flim"],
             "qlim_mpa": layer["qlim"] / 1000 if layer["qlim"] is not None else None,
             "used_parameter": used_parameter,
+            "alpha": alpha_value,
             "unit_shaft": unit_shaft,
             "qshaft_layer": qshaft_layer,
         })
@@ -583,10 +835,22 @@ def calculate_layer_capacity(D, L, WT, FS, method, layer_lines, loading_type="co
             base_model = "Clay: qbase = 9cu"
 
         elif tip_layer["behavior"] == "frictional":
-            if method == "API Main Text":
+            if method == API_RP_2A_1979_1986:
+                Nq = tip_layer["k0"] if tip_layer["k0"] is not None else 20.0
+                q_unit_base = end_bearing_frictional(method, None, D, WT, layers, L, tip_layer)
+                k_comp = 0.8
+                k_tens = 0.5
+                base_model = (
+                    "Sand/Silt: API RP 2A (1979-1986), "
+                    f"Kcomp={k_comp:.1f}, Ktens={k_tens:.1f}, "
+                    f"Nq={Nq:g}, q=Nq*p'0"
+                )
+            elif method == "API Main Text":
                 qc_for_state = layer_value(tip_layer, "qc_eb", L)
                 if qc_for_state is None:
                     qc_for_state = layer_value(tip_layer, "qc_f", L)
+                if qc_for_state is None:
+                    qc_for_state = 1000.0
 
                 params = api_main_text_sand_params_from_qc(qc_for_state)
                 q_unit_base = end_bearing_frictional(method, qc_for_state, D, WT, layers, L, tip_layer)
@@ -607,7 +871,14 @@ def calculate_layer_capacity(D, L, WT, FS, method, layer_lines, loading_type="co
                     base_model = "No qc_eb near pile tip"
                 else:
                     q_unit_base = end_bearing_frictional(method, qc_eb_av, D, WT, layers, L, tip_layer)
-                    base_model = f"Frictional: {method} using qc_eb"
+                    if method == "ISO 19901-4:2025":
+                        q_unplugged = Ar * qc_eb_av
+                        base_model = (
+                            "Sand: ISO 19901-4:2025 Unified CPT, plugged base; "
+                            f"unplugged check q={q_unplugged/1000:.3f} MPa"
+                        )
+                    else:
+                        base_model = f"Frictional: {method} using qc_eb"
 
             qbase = q_unit_base * Ap
 
@@ -632,12 +903,13 @@ def calculate_layer_capacity(D, L, WT, FS, method, layer_lines, loading_type="co
         "Qallow": qallow,
         "loading_type": loading_type,
         "base_model": base_model,
+        "cohesive_model": cohesive_model,
     }
 
     return rows, summary, layers
 
 
-def calculate_capacity_curve(D, WT, FS, method, layer_lines, loading_type="compression"):
+def calculate_capacity_curve(D, WT, FS, method, layer_lines, loading_type="compression", cohesive_model="API RP 2GEO (October 2014)"):
     layers = parse_layer_lines(layer_lines)
     depths = []
     qult = []
@@ -657,6 +929,7 @@ def calculate_capacity_curve(D, WT, FS, method, layer_lines, loading_type="compr
                 method=method,
                 layer_lines=layer_lines,
                 loading_type=loading_type,
+                cohesive_model=cohesive_model,
             )
 
             depths.append(current)
