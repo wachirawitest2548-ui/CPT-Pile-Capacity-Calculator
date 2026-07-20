@@ -267,8 +267,6 @@ def show_pttep_login():
         insertbackground="#003B71"
     )
     email_entry.pack(fill="x", pady=(5, 14), ipady=7)
-    # Development default
-    email_entry.insert(0, "zWachirawitP@pttep.com")
 
     tk.Label(
         card,
@@ -290,8 +288,6 @@ def show_pttep_login():
         insertbackground="#003B71"
     )
     key_entry.pack(fill="x", pady=(5, 10), ipady=7)
-    # Development default
-    key_entry.insert(0, LICENSE_KEY)
 
     status_label = tk.Label(
         card,
@@ -472,12 +468,30 @@ def run_app():
                 )
 
 
+    def get_diameter_m():
+        """Return the entered pile diameter converted to metres."""
+        value_text = entry_diameter.get().strip()
+        if not value_text:
+            raise ValueError("Please enter Pile Diameter.")
+
+        value = float(value_text)
+        if value <= 0:
+            raise ValueError("Pile Diameter must be greater than zero.")
+
+        unit = diameter_unit_combo.get().strip()
+        if unit == "inch":
+            return value * 0.0254
+        if unit == "m":
+            return value
+        raise ValueError("Please select the Pile Diameter unit (m or inch).")
+
     def apply_pile_case(event=None):
         case = pile_case_combo.get()
 
         if case == "54-in OD":
             entry_diameter.delete(0, tk.END)
-            entry_diameter.insert(0, "1.3716")
+            entry_diameter.insert(0, "54")
+            diameter_unit_combo.set("inch")
 
             entry_length.delete(0, tk.END)
             entry_length.insert(0, "173.563")
@@ -490,7 +504,8 @@ def run_app():
 
         elif case == "66-in OD":
             entry_diameter.delete(0, tk.END)
-            entry_diameter.insert(0, "1.6764")
+            entry_diameter.insert(0, "66")
+            diameter_unit_combo.set("inch")
 
             entry_length.delete(0, tk.END)
             entry_length.insert(0, "171.550")
@@ -506,14 +521,24 @@ def run_app():
         results = []
 
         try:
-            D = float(entry_diameter.get())
+            D = get_diameter_m()
             pile_length = float(entry_length.get())
             analysis_depth = float(entry_analysis_depth.get())
             WT = float(entry_wt.get())
             FS = float(entry_fs.get())
             method = method_combo.get()
             cohesive_model = cohesive_combo.get()
-            loading_type = loading_combo.get().lower()
+            loading_selection = loading_combo.get()
+
+            if method == "Select Method":
+                raise ValueError("Please select an analysis method.")
+            if cohesive_model == "Select Cohesive Model":
+                raise ValueError("Please select a cohesive-soil model.")
+            if loading_selection == "Select Loading Type":
+                raise ValueError("Please select a loading type.")
+
+            validate_annex_c_ratio(cohesive_model)
+            loading_type = loading_selection.lower()
 
             layer_lines = layer_text.get("1.0", tk.END).strip().split("\n")
 
@@ -1095,7 +1120,7 @@ def run_app():
 
     def show_detailed_engineering_advisor():
         try:
-            D=float(entry_diameter.get()); pile_length=float(entry_length.get()); analysis_depth=float(entry_analysis_depth.get())
+            D=get_diameter_m(); pile_length=float(entry_length.get()); analysis_depth=float(entry_analysis_depth.get())
             WT=float(entry_wt.get()); FS=float(entry_fs.get())
             loading_type=loading_combo.get().lower(); cohesive_model=cohesive_combo.get()
             layer_lines=layer_text.get('1.0',tk.END).strip().split('\n')
@@ -1323,7 +1348,7 @@ def run_app():
             messagebox.showerror("Error", f"สร้าง Report qc Profile ไม่ได้\n\n{e}")
 
     def make_all_methods_curve_figure(loading_type, cohesive_model_override=None, selected_methods=None, include_average=True):
-        D = float(entry_diameter.get())
+        D = get_diameter_m()
         WT = float(entry_wt.get())
         FS = float(entry_fs.get())
         analysis_depth = float(entry_analysis_depth.get())
@@ -1612,7 +1637,7 @@ def run_app():
 
     def make_single_method_compression_tension_figure(method, cohesive_model_override=None):
         """Create one Fugro-style page containing compression and tension curves for one friction method."""
-        D = float(entry_diameter.get())
+        D = get_diameter_m()
         WT = float(entry_wt.get())
         FS = float(entry_fs.get())
         analysis_depth = float(entry_analysis_depth.get())
@@ -1774,7 +1799,7 @@ def run_app():
         This avoids making two separate pages for Main Text vs Annex C when the only real
         difference is the clay shaft-friction model. Frictional layers remain method-based.
         """
-        D = float(entry_diameter.get())
+        D = get_diameter_m()
         WT = float(entry_wt.get())
         FS = float(entry_fs.get())
         analysis_depth = float(entry_analysis_depth.get())
@@ -2400,7 +2425,7 @@ def run_app():
 
     def show_capacity_curve():
         try:
-            D = float(entry_diameter.get())
+            D = get_diameter_m()
             WT = float(entry_wt.get())
             FS = float(entry_fs.get())
             method = method_combo.get()
@@ -3249,7 +3274,7 @@ def run_app():
             return
 
         try:
-            D = float(entry_diameter.get())
+            D = get_diameter_m()
             pile_length = float(entry_length.get())
             analysis_depth = float(entry_analysis_depth.get())
             WT = float(entry_wt.get())
@@ -3372,7 +3397,7 @@ def run_app():
             return
 
         try:
-            D = float(entry_diameter.get())
+            D = get_diameter_m()
             WT = float(entry_wt.get())
             FS = float(entry_fs.get())
             analysis_depth = float(entry_analysis_depth.get())
@@ -3911,7 +3936,7 @@ def run_app():
                 messagebox.showwarning("Warning", "Required Load ต้องมากกว่า 0 MN")
                 return
 
-            D = float(entry_diameter.get())
+            D = get_diameter_m()
             WT = float(entry_wt.get())
             FS = float(entry_fs.get())
             analysis_depth = float(entry_analysis_depth.get())
@@ -4063,8 +4088,8 @@ def run_app():
     root.configure(bg="#F4F7FB")
 
     # User-defined Annex C cu/sigma'v0 range for preliminary high-plastic NC screening.
-    annex_c_ratio_min_var = tk.StringVar(value="0.22")
-    annex_c_ratio_max_var = tk.StringVar(value="0.27")
+    annex_c_ratio_min_var = tk.StringVar(value="")
+    annex_c_ratio_max_var = tk.StringVar(value="")
 
     # Required penetration depth finder inputs/results.
     required_load_var = tk.StringVar(value="")
@@ -4074,12 +4099,50 @@ def run_app():
     required_stability_window_var = tk.StringVar(value="5")
 
     def apply_annex_c_ratio_settings(*_args):
+        """Apply the user-entered Annex C ratio only when both fields are valid."""
+        min_text = annex_c_ratio_min_var.get().strip()
+        max_text = annex_c_ratio_max_var.get().strip()
+        if not min_text or not max_text:
+            return
         try:
-            r_min = float(annex_c_ratio_min_var.get())
-            r_max = float(annex_c_ratio_max_var.get())
+            r_min = float(min_text)
+            r_max = float(max_text)
+            if r_min <= 0 or r_max <= 0 or r_min >= r_max:
+                return
             set_annex_c_high_plastic_ratio_range(r_min, r_max)
-        except Exception:
-            set_annex_c_high_plastic_ratio_range(0.22, 0.27)
+        except ValueError:
+            return
+
+    def validate_annex_c_ratio(cohesive_model):
+        """Require a valid high-plasticity ratio range whenever Annex C is selected."""
+        if cohesive_model != "API RP 2GEO (October 2014) - Annex C":
+            return
+
+        min_text = annex_c_ratio_min_var.get().strip()
+        max_text = annex_c_ratio_max_var.get().strip()
+
+        if not min_text or not max_text:
+            raise ValueError(
+                "Please enter the Range of High Plastic cu/σ′v0 for Annex C "
+                "before calculation.\nRecommended default range: 0.20 - 0.30."
+            )
+
+        try:
+            r_min = float(min_text)
+            r_max = float(max_text)
+        except ValueError as exc:
+            raise ValueError(
+                "The Annex C high-plasticity ratio range must contain numeric values."
+            ) from exc
+
+        if r_min <= 0 or r_max <= 0:
+            raise ValueError("The Annex C ratio values must be greater than zero.")
+        if r_min >= r_max:
+            raise ValueError(
+                "The minimum Annex C ratio must be less than the maximum ratio."
+            )
+
+        set_annex_c_high_plastic_ratio_range(r_min, r_max)
 
     annex_c_ratio_min_var.trace_add("write", apply_annex_c_ratio_settings)
     annex_c_ratio_max_var.trace_add("write", apply_annex_c_ratio_settings)
@@ -4256,7 +4319,7 @@ def run_app():
         text=(
             f"Version {APP_VERSION}    •    "
             "Authorized Internal Use Only    •    "
-            "API RP 2GEO CPT-Based Methods"
+            "API RP 2GEO • API RP 2A • ISO 19901-4:2025"
         ),
         font=("Segoe UI", 9),
         fg="#C7D9F2",
@@ -4361,50 +4424,60 @@ def run_app():
         style="Modern.TCombobox"
     )
     pile_case_combo.pack(fill="x", pady=(3, 8))
-    pile_case_combo.current(1)
+    pile_case_combo.current(0)
 
-    tk.Label(left_frame, text="Pile Diameter, D (m)", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
-    entry_diameter = ttk.Entry(left_frame, width=20, style="Modern.TEntry")
-    entry_diameter.pack(fill="x", pady=4)
-    entry_diameter.insert(0, "1.3716")
+    tk.Label(left_frame, text="Pile Diameter, D", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
+    diameter_input_frame = tk.Frame(left_frame, bg="white")
+    diameter_input_frame.pack(fill="x", pady=4)
+
+    entry_diameter = ttk.Entry(diameter_input_frame, width=12, style="Modern.TEntry")
+    entry_diameter.pack(side="left", fill="x", expand=True)
+
+    diameter_unit_combo = ttk.Combobox(
+        diameter_input_frame,
+        values=["m", "inch"],
+        width=6,
+        state="readonly",
+        style="Modern.TCombobox"
+    )
+    diameter_unit_combo.pack(side="left", padx=(6, 0))
+    diameter_unit_combo.set("")
 
     tk.Label(left_frame, text="Pile Length, Ltotal (m)", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
     entry_length = ttk.Entry(left_frame, width=20, style="Modern.TEntry")
     entry_length.pack(fill="x", pady=4)
-    entry_length.insert(0, "173.563")
 
     tk.Label(left_frame, text="Analysis Depth, Lembed (m)", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
     entry_analysis_depth = ttk.Entry(left_frame, width=20, style="Modern.TEntry")
     entry_analysis_depth.pack(fill="x", pady=4)
-    entry_analysis_depth.insert(0, "157.5")
 
     tk.Label(left_frame, text="Wall Thickness, WT (m)", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
     entry_wt = ttk.Entry(left_frame, width=20, style="Modern.TEntry")
     entry_wt.pack(fill="x", pady=4)
-    entry_wt.insert(0, "0.0445")
 
     pile_case_combo.bind("<<ComboboxSelected>>", apply_pile_case)
 
     tk.Label(left_frame, text="Factor of Safety", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
     entry_fs = ttk.Entry(left_frame, width=20, style="Modern.TEntry")
     entry_fs.pack(fill="x", pady=4)
-    entry_fs.insert(0, "2.0")
 
     tk.Label(left_frame, text="Analysis Method", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
     method_combo = ttk.Combobox(
         left_frame,
-        values=["API Main Text", "API RP 2A (1979-1986)", "ISO 19901-4:2025", "ICP-05", "UWA-05", "Fugro-05", "NGI-05"],
+        values=["Select Method", "API Main Text", "API RP 2A (1979-1986)", "ISO 19901-4:2025", "ICP-05", "UWA-05", "Fugro-05", "NGI-05"],
         width=17,
+        state="readonly",
         style="Modern.TCombobox"
     )
     method_combo.pack(fill="x", pady=(3, 8))
-    method_combo.current(2)
+    method_combo.current(0)
 
     tk.Label(left_frame, text="Cohesive Model", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
     cohesive_combo = ttk.Combobox(
         left_frame,
-        values=["API RP 2GEO (October 2014)", "API RP 2GEO (October 2014) - Annex C"],
+        values=["Select Cohesive Model", "API RP 2GEO (October 2014)", "API RP 2GEO (October 2014) - Annex C"],
         width=17,
+        state="readonly",
         style="Modern.TCombobox"
     )
     cohesive_combo.pack(fill="x", pady=(3, 8))
@@ -4447,17 +4520,28 @@ def run_app():
 
     tk.Label(
         left_frame,
-        text="Used only for Annex C when PI/LL are unavailable.",
+        text="Default range: 0.20 - 0.30",
+        bg="white",
+        fg="#0B5CAD",
+        font=("Segoe UI", 7, "bold")
+    ).pack(anchor="w", pady=(1, 0))
+
+    tk.Label(
+        left_frame,
+        text="Used only for Annex C when\nPI/LL are unavailable.",
         bg="white",
         fg="#64748B",
-        font=("Segoe UI", 7)
-    ).pack(anchor="w", pady=(0, 8))
+        font=("Segoe UI", 7),
+        justify="left",
+        anchor="w"
+    ).pack(fill="x", anchor="w", pady=(0, 8))
 
     tk.Label(left_frame, text="Loading Type", bg="white", fg="#334155", font=("Segoe UI", 9)).pack(anchor="w")
     loading_combo = ttk.Combobox(
         left_frame,
-        values=["Compression", "Tension"],
+        values=["Select Loading Type", "Compression", "Tension"],
         width=17,
+        state="readonly",
         style="Modern.TCombobox"
     )
     loading_combo.pack(fill="x", pady=(3, 8))
@@ -4597,45 +4681,7 @@ def run_app():
     layer_text = tk.Text(middle_frame, height=13, width=120, bg="#FBFDFF", fg="#0B1F3A", insertbackground="#003B71", relief="flat", bd=1, font=("Consolas", 9))
     layer_text.pack(fill="x", pady=5)
 
-    layer_text.insert(tk.END, """0,3,clay,cohesive,16.4,16.4,1,9,,,,,,
-3,7.9,clay,cohesive,16.4,16.4,9,14,,,,,,
-7.9,10.8,clay,cohesive,18.2,18.2,16,16,,,,,,
-10.8,14,clay,cohesive,18.4,18.4,22,25,,,,,,
-14,20.9,clay,cohesive,17.0,17.0,25,40,,,,,,
-20.9,27.4,clay,cohesive,17.7,17.7,42,50,,,,,,
-27.4,32.5,clay,cohesive,17.4,17.4,55,65,,,,,,
-32.5,36.8,clay,cohesive,17.4,17.4,65,65,,,,,,
-36.8,47,clay,cohesive,18.0,18.0,65,80,,,,,,
-47,50,clay,cohesive,18.0,18.0,85,85,,,,,,
-50,51.6,sand,frictional,18.3,18.3,,,8,9,28.8,1.0,,
-51.6,57.7,sand,frictional,19.2,19.2,,,27,18,26.1,1.0,,
-57.7,61,sand,frictional,19.2,19.2,,,26,26,26.1,1.0,,
-61,64,sand,frictional,18.7,18.7,,,10.5,10.5,28.8,1.0,,
-64,66.7,sand,frictional,18.7,18.7,,,17,17,28.8,1.0,,
-66.7,68.5,sand,frictional,20.0,20.0,,,26,40,26.1,1.0,,
-68.5,71,sand,frictional,20.0,20.0,,,40,33,26.1,1.0,,
-71,74,sand,frictional,20.0,20.0,,,24,24,26.1,1.0,,
-74,77.3,sand,frictional,20.0,20.0,,,31.5,31.5,26.1,1.0,,
-77.3,83,sand,frictional,19.2,19.2,,,23,25,26.1,1.0,,
-83,95.2,sand,frictional,20.1,20.1,,,30,30,26.1,1.0,,
-95.2,102.6,sand,frictional,18.7,18.7,,,16,16,28.8,1.0,,
-102.6,106.8,clay,cohesive,18.9,18.9,180,205,,,,,,
-106.8,108.8,sand,frictional,20.0,20.0,,,20,20,28.8,1.0,,
-108.8,110.8,clay,cohesive,20.0,20.0,160,160,,,,,,
-110.8,112,sand,frictional,18.1,18.1,,,18,18,28.8,1.0,,
-112,113.7,sand/clay,frictional,18.1,18.1,,,12,12,28.8,1.0,,2.2
-113.7,114.8,clay,cohesive,19.1,19.1,230,230,,,,,,
-114.8,115.9,sand,frictional,20.0,20.0,,,33,33,28.8,1.0,,
-115.9,116.9,sand/clay,frictional,19.3,19.3,,,8,8,28.8,1.0,,2.1
-116.9,118.8,sand,frictional,19.1,19.1,,,17,17,28.8,1.0,,
-118.8,123.5,silt,frictional,19.1,19.1,,,11,11,28.8,1.0,,
-123.5,125.5,sand,frictional,19.1,19.1,,,14.5,14.5,28.8,1.0,,
-125.5,129.6,silt/clay,frictional,19.8,19.8,,,8,8,28.8,1.0,,2.0
-129.6,140,clay,cohesive,19.5,19.5,250,250,,,,,,
-140,141.7,sand,frictional,19.5,19.5,,,4.7,4.7,28.8,1.0,,
-141.7,150,clay,cohesive,18.5,18.5,275,350,,,,,,
-150,152,silt,frictional,20.0,20.0,,,24,24,28.8,1.0,,
-152,157.5,clay,cohesive,18.5,18.5,350,350,,,,,,""")
+
 
     columns = (
         "depth_range", "soil", "behavior", "gamma", "gamma_eff", "p0_layer", "cum_p0", "cu",
